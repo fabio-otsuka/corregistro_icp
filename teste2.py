@@ -108,4 +108,4 @@ for index in range(pointCount):
     transformedSource.GetPoint(index, point)
     a.append(point)
     print("transformed source point[%s]=%s" % (index, point))
-print a
+print a[0]
