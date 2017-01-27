@@ -17,8 +17,8 @@ from math import sqrt
 # Faco as combinacoes distribuindo os pontos
 # array([[1 2 3], [1 2 4], [1 3 4], [2 3 4]])
 
-S = [[117.7,174.3,-230.1],[243.4,180.8,-230.4],[189.0,108.2,-145.8],[189.2,230.3,-116.2]]
-Simagem = [[6.0,126.0,69.0],[144.0,127.0,69.0],[80.0,50.0,136.0],[76.0,177.0,186.0]]
+S = [[-129.5,-48.4,-43.8],[-105.3,94.8,-30.9],[-16.6,3.6,-48.5],[-190.0,33.9,15.8]]
+Simagem = [[9.0,127.0,76.0],[157.0,134.0,73.0],[86.0,33.0,98.0],[85.0,220.0,84.0]]
 
 #def comb(S):
 a = []
@@ -102,26 +102,26 @@ for i in range(0,C):
     q1 = np.matrix(q1.copy())
     q2 = np.matrix(q2.copy())
     Minv = M.I
-    Ninv = M.I
+    Ninv = N.I
 
 
-    ponto1 = np.array(b[i][0])
+    ponto1 = np.array(a[i][0])
     ponto1.shape = (3,1)
     ponto1 = np.matrix(ponto1.copy())
-    ponto2 = np.matrix(b[i][1])
+    ponto2 = np.matrix(a[i][1])
     ponto2.shape = (3,1)
     ponto2 = np.matrix(ponto2.copy())
-    ponto3 = np.matrix(b[i][2])
+    ponto3 = np.matrix(a[i][2])
     ponto3.shape = (3,1)
     ponto3 = np.matrix(ponto3.copy())
 
-    imagem1 = np.array(q1 + (Minv * N) * (ponto1 - q2))
-    imagem2 = np.array(q1 + (Minv * N) * (ponto2 - q2))
-    imagem3 = np.array(q1 + (Minv * N) * (ponto3 - q2))
+    imagem1 = np.array(q2 + (Ninv * M) * (ponto1 - q1))
+    imagem2 = np.array(q2 + (Ninv * M) * (ponto2 - q1))
+    imagem3 = np.array(q2 + (Ninv * M) * (ponto3 - q1))
 
-    ED1=np.sqrt((((imagem1[0]-a[i][0][0])**2) + ((imagem1[1]-a[i][0][1])**2) +((imagem1[2]-a[i][0][2])**2)))
-    ED2=np.sqrt((((imagem2[0]-a[i][1][0])**2) + ((imagem2[1]-a[i][1][1])**2) +((imagem2[2]-a[i][1][2])**2)))
-    ED3=np.sqrt((((imagem3[0]-a[i][2][0])**2) + ((imagem3[1]-a[i][2][1])**2) +((imagem3[2]-a[i][2][2])**2)))
+    ED1=np.sqrt((((imagem1[0]-b[i][0][0])**2) + ((imagem1[1]-b[i][0][1])**2) +((imagem1[2]-b[i][0][2])**2)))
+    ED2=np.sqrt((((imagem2[0]-b[i][1][0])**2) + ((imagem2[1]-b[i][1][1])**2) +((imagem2[2]-b[i][1][2])**2)))
+    ED3=np.sqrt((((imagem3[0]-b[i][2][0])**2) + ((imagem3[1]-b[i][2][1])**2) +((imagem3[2]-b[i][2][2])**2)))
 
     FRE = float(np.sqrt((ED1**2 + ED2**2 + ED3**2)/3))
     e.insert(i,[FRE])
@@ -146,18 +146,22 @@ for i in range(0,C):
 
 # selecionar entao a[0], b[0] e e[0]
 ###############################################################################################################
+print 'Grupo 1:'
 print a[0]
 print b[0]
-print e[0]
+print 'FRE1: %s \n' %e[0]
 
+print 'Grupo 2:'
 print a[1]
 print b[1]
-print e[1]
+print 'FRE2: %s \n' %e[1]
 
+print 'Grupo 3:'
 print a[2]
 print b[2]
-print e[2]
+print 'FRE3: %s \n' %e[2]
 
+print 'Grupo 4:'
 print a[3]
 print b[3]
-print e[3]
+print 'FRE4: %s' %e[3]
