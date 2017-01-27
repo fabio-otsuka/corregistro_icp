@@ -1,266 +1,246 @@
-import cv2
+#from __future__ import print_function
+import vtk
+from vtk import *
 import numpy as np
+from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
-from sklearn.neighbors import NearestNeighbors
-from scipy.optimize import leastsq
-from scipy.optimize import fmin_bfgs
-from scipy.optimize import minimize
-from scipy.optimize import approx_fprime
+from math import sqrt
+
+a=[]
+b=[]
+e=[]
+
+S = [[-129.5,-48.4,-43.8],[-105.3,94.8,-30.9],[-16.6,3.6,-48.5],[-190.0,33.9,15.8]]
+Simagem = [[9.0,127.0,76.0],[157.0,134.0,73.0],[86.0,33.0,98.0],[85.0,220.0,84.0]]
 
 
-def res(p, src, dst):
-    T = np.matrix([[np.cos(p[2]), -np.sin(p[2]), p[0]],
-                   [np.sin(p[2]), np.cos(p[2]), p[1]],
-                   [0, 0, 1]])
-    n = np.size(src, 0)
-    xt = np.ones([n, 3])
-    xt[:, :-1] = src
-    xt = (xt * T.T).A
-    d = np.zeros(np.shape(src))
-    d[:, 0] = xt[:, 0] - dst[:, 0]
-    d[:, 1] = xt[:, 1] - dst[:, 1]
+p1 = np.array(S[0])
+p2 = np.array(S[1])
+p3 = np.array(S[2])
+p4 = np.array(S[3])
+img1 = np.array(Simagem[0])
+img2 = np.array(Simagem[1])
+img3 = np.array(Simagem[2])
+img4 = np.array(Simagem[3])
 
-    r = np.sum(np.square(d[:, 0]) + np.square(d[:, 1]))
-    return r
+sub1 = p2 - p1
+sub2 = p3 - p1
+sub3 = img2 - img1
+sub4 = img3 - img1
+lamb1 = (sub1[0] * sub2[0] + sub1[1] * sub2[1] + sub1[2] * sub2[2]) / np.dot(sub1, sub1)
+lamb2 = (sub3[0] * sub4[0] + sub3[1] * sub4[1] + sub3[2] * sub4[2]) / np.dot(sub3, sub3)
 
+q1 = p1 + lamb1 * sub1
+q2 = img1 + lamb2 * sub3
+g1 = p1 - q1
+g2 = p3 - q1
+gimg1 = img1 - q2
+gimg2 = img3 - q2
 
-def jac(p, src, dst):
-    T = np.matrix([[np.cos(p[2]), -np.sin(p[2]), p[0]],
-                   [np.sin(p[2]), np.cos(p[2]), p[1]],
-                   [0, 0, 1]])
-    n = np.size(src, 0)
-    xt = np.ones([n, 3])
-    xt[:, :-1] = src
-    xt = (xt * T.T).A
-    d = np.zeros(np.shape(src))
-    d[:, 0] = xt[:, 0] - dst[:, 0]
-    d[:, 1] = xt[:, 1] - dst[:, 1]
+if not g1.any():
+    g1 = p2 - q1
 
-    # look at square as g(U)=sum U_i^TU_i, U_i=f_i([t_x,t_y,theta]^T)
-    dUdth_R = np.matrix([[-np.sin(p[2]), -np.cos(p[2])],
-                         [np.cos(p[2]), -np.sin(p[2])]])
-    dUdth = (src * dUdth_R.T).A
-    g = np.array([np.sum(2 * d[:, 0]),
-                  np.sum(2 * d[:, 1]),
-                  np.sum(2 * (d[:, 0] * dUdth[:, 0] + d[:, 1] * dUdth[:, 1]))])
-    return g
+g3 = np.cross(g2, g1)
+gimg3 = np.cross(gimg2, gimg1)
 
+g1 = g1 / sqrt(np.dot(g1, g1))
+g2 = g2 / sqrt(np.dot(g2, g2))
+g3 = g3 / sqrt(np.dot(g3, g3))
 
-def hess(p, src, dst):
-    n = np.size(src, 0)
-    T = np.matrix([[np.cos(p[2]), -np.sin(p[2]), p[0]],
-                   [np.sin(p[2]), np.cos(p[2]), p[1]],
-                   [0, 0, 1]])
-    n = np.size(src, 0)
-    xt = np.ones([n, 3])
-    xt[:, :-1] = src
-    xt = (xt * T.T).A
-    d = np.zeros(np.shape(src))
-    d[:, 0] = xt[:, 0] - dst[:, 0]
-    d[:, 1] = xt[:, 1] - dst[:, 1]
+gimg1 = gimg1 / sqrt(np.dot(gimg1, gimg1))
+gimg2 = gimg2 / sqrt(np.dot(gimg2, gimg2))
+gimg3 = gimg3 / sqrt(np.dot(gimg3, gimg3))
 
-    H = np.zeros([3, 3])
+M = np.matrix([[g1[0], g1[1], g1[2]],
+                [g2[0], g2[1], g2[2]],
+                [g3[0], g3[1], g3[2]]])
 
-    dUdth_R = np.matrix([[-np.sin(p[2]), -np.cos(p[2])],
-                         [np.cos(p[2]), -np.sin(p[2])]])
-    dUdth = (src * dUdth_R.T).A
+N = np.matrix([[gimg1[0], gimg1[1], gimg1[2]],
+                [gimg2[0], gimg2[1], gimg2[2]],
+                [gimg3[0], gimg3[1], gimg3[2]]])
 
-    H[0, 0] = n * 2
-    H[0, 1] = 0
-    H[0, 2] = np.sum(2 * dUdth[:, 0])
-
-    H[1, 0] = 0
-    H[1, 1] = n * 2
-    H[1, 2] = np.sum(2 * dUdth[:, 1])
-
-    H[2, 0] = H[0, 2]
-    H[2, 1] = H[1, 2]
-
-    d2Ud2th_R = np.matrix([[-np.cos(p[2]), np.sin(p[2])],
-                           [-np.sin(p[2]), -np.cos(p[2])]])
-    d2Ud2th = (src * d2Ud2th_R.T).A
-
-    H[2, 2] = np.sum(
-        2 * (np.square(dUdth[:, 0]) + np.square(dUdth[:, 1]) + d[:, 0] * d2Ud2th[:, 0] + d[:, 0] * d2Ud2th[:, 0]))
-    return H
+q1.shape = (3, 1)
+q2.shape = (3, 1)
+q1 = np.matrix(q1.copy())
+q2 = np.matrix(q2.copy())
+Minv = M.I
+Ninv = N.I
 
 
-def debug_gradient(p, src, dst):
-    '''
-    Compare gradient with numerical approxmimation
-    '''
-    r_t_x = r_t_y = 1
+ponto1 = np.array(p1)
+ponto1.shape = (3,1)
+ponto1 = np.matrix(ponto1.copy())
 
-    g_a = jac(p, src, dst)
-    g_n = approx_fprime(p, res, [1.0e-10, 1.0e-10, 1.0e-10], src, dst)
+ponto2 = np.matrix(p2)
+ponto2.shape = (3,1)
+ponto2 = np.matrix(ponto2.copy())
 
-    print "g_a:", g_a
-    print "g_n:", g_n
+ponto3 = np.matrix(p3)
+ponto3.shape = (3,1)
+ponto3 = np.matrix(ponto3.copy())
 
-    H_a = hess(p, src, dst)
+ponto4 = np.matrix(p4)
+ponto4.shape = (3,1)
+ponto4 = np.matrix(ponto4.copy())
 
-    # element of gradient
-    def g_p_i(p, src, dst, i):
-        g = jac(p, src, dst)
-        return g[i]
-
-    # assuming analytical gradient is correct!
-    H_x_n = approx_fprime(p, g_p_i, 1.0e-10, src, dst, 0)
-    H_y_n = approx_fprime(p, g_p_i, 1.0e-10, src, dst, 1)
-    H_theta_n = approx_fprime(p, g_p_i, 1.0e-10, src, dst, 2)
-    H_n = np.zeros([3, 3])
-    H_n[0, :] = H_x_n
-    H_n[1, :] = H_y_n
-    H_n[2, :] = H_theta_n
-
-    print "H_a:\n", H_a
-    print "H_n:\n", H_n
+ponto1 = np.array(q2 + (Ninv * M) * (ponto1 - q1))
+ponto2 = np.array(q2 + (Ninv * M) * (ponto2 - q1))
+ponto3 = np.array(q2 + (Ninv * M) * (ponto3 - q1))
+ponto4 = np.array(q2 + (Ninv * M) * (ponto4 - q1))
 
 
-def least_squared_2d_transform(src, dst, p0):
-    '''
-    Find the translation and roation (matrix) that
-    gives a local optima to
-
-    sum (T(src[i])-dst[i])^T*(T(src[i])-dst[i])
-    src: (nx2) [x,y]
-    dst: (nx2) [x,y]
-    p0:  (3x,) [x,y,theta]
-
-    '''
-
-    # least squares want's 1d functions
-    # result = leastsq(res,p0,Dfun=jac,col_deriv=1,full_output=1)
-
-    # p_opt  = fmin_bfgs(res,p0,fprime=jac,args=(src,dst),disp=1)
-    result = minimize(res, p0, args=(src, dst), method='Newton-CG', jac=jac, hess=hess)
-    # print result
-    p_opt = result.x
-    T_opt = np.array([[np.cos(p_opt[2]), -np.sin(p_opt[2]), p_opt[0]],
-                      [np.sin(p_opt[2]), np.cos(p_opt[2]), p_opt[1]]])
-    return p_opt, T_opt
 
 
-def icp(a, b, init_pose=(0, 0, 0), no_iterations=13):
-    '''
-    The Iterative Closest Point estimator.
-    Takes two cloudpoints a[x,y], b[x,y], an initial estimation of
-    their relative pose and the number of iterations
-    Returns the affine transform that transforms
-    the cloudpoint a to the cloudpoint b.
-    Note:
-        (1) This method works for cloudpoints with minor
-        transformations. Thus, the result depents greatly on
-        the initial pose estimation.
-        (2) A large number of iterations does not necessarily
-        ensure convergence. Contrarily, most of the time it
-        produces worse results.
-    1. For each point in the source point cloud, find the closest point in the reference point cloud.
-    2. Estimate the combination of rotation and translation using a mean squared error cost function that will best align each source point to its match found in the previous step.
-    3. Transform the source points using the obtained transformation.
-    4. Iterate (re-associate the points, and so on).
-    '''
+# ============ create source points ==============
+print "Creating source points..."
+sourcePoints = vtk.vtkPoints()
+sourceVertices = vtk.vtkCellArray()
 
-    print "init_pose:", init_pose
+id = sourcePoints.InsertNextPoint(ponto1)
+sourceVertices.InsertNextCell(1)
+sourceVertices.InsertCellPoint(id)
 
-    # print "a: ",np.shape(a)
-    # print "b: ",np.shape(b)
+id = sourcePoints.InsertNextPoint(ponto2)
+sourceVertices.InsertNextCell(1)
+sourceVertices.InsertCellPoint(id)
 
-    src = np.array([a.T], copy=True).astype(np.float32)
-    dst = np.array([b.T], copy=True).astype(np.float32)
+id = sourcePoints.InsertNextPoint(ponto3)
+sourceVertices.InsertNextCell(1)
+sourceVertices.InsertCellPoint(id)
 
-    # print "src1: ",np.shape(src)
-    # print "dst1: ",np.shape(dst)
+id = sourcePoints.InsertNextPoint(ponto4)
+sourceVertices.InsertNextCell(1)
+sourceVertices.InsertCellPoint(id)
 
-    # Initialise with the initial pose estimation
-    Tr = np.array([[np.cos(init_pose[2]), -np.sin(init_pose[2]), init_pose[0]],
-                   [np.sin(init_pose[2]), np.cos(init_pose[2]), init_pose[1]],
-                   [0, 0, 1]])
+source = vtk.vtkPolyData()
+source.SetPoints(sourcePoints)
+source.SetVerts(sourceVertices)
+if vtk.VTK_MAJOR_VERSION <= 5:
+    source.Update()
 
-    src = cv2.transform(src, Tr[0:2])
-    # print "src2: ",np.shape(src)
+print("Displaying source points...")
+# ============ display source points ==============
+src = []
+pointCount = 4
+for index in range(pointCount):
+    point = [0, 0, 0]
+    sourcePoints.GetPoint(index, point)
+    src.append(point)
+    print("source point[%s]=%s" % (index, point))
 
-    p_opt = np.array(init_pose)
+# ============ create target points ==============
+print("Creating target points...")
+targetPoints = vtk.vtkPoints()
+targetVertices = vtk.vtkCellArray()
 
-    for i in range(no_iterations):
-        # Find the nearest neighbours between the current source and the
-        # destination cloudpoint
-        nbrs = NearestNeighbors(n_neighbors=1, algorithm='auto').fit(dst[0])
-        distances, indices = nbrs.kneighbors(src[0])
+id = targetPoints.InsertNextPoint(9.0,127.0,76.0)
+targetVertices.InsertNextCell(1)
+targetVertices.InsertCellPoint(id)
 
-        # Compute the transformation between the current source
-        # and destination cloudpoint
-        # T = cv2.estimateRigidTransform(src, dst[0, indices.T], False) #this thing can return None for unknown reasons!!!
+id = targetPoints.InsertNextPoint(157.0,134.0,73.0)  ##
+targetVertices.InsertNextCell(1)
+targetVertices.InsertCellPoint(id)
 
-        if i == 0:
-            print "squared error at p0 = " + str(res([0, 0, 0], src[0], dst[0, indices.T][0]))
+id = targetPoints.InsertNextPoint(86.0,33.0,98.0)
+targetVertices.InsertNextCell(1)
+targetVertices.InsertCellPoint(id)
 
-        # debug_gradient([0,0,0],src[0],dst[0, indices.T][0])
+id = targetPoints.InsertNextPoint(85.0,220.0,84.0)
+targetVertices.InsertNextCell(1)
+targetVertices.InsertCellPoint(id)
 
-        p, T = least_squared_2d_transform(src[0], dst[0, indices.T][0], [0, 0, 0])
+target = vtk.vtkPolyData()
+target.SetPoints(targetPoints)
+target.SetVerts(targetVertices)
+if vtk.VTK_MAJOR_VERSION <= 5:
+    target.Update()
 
-        # Transform the previous source and update the
-        # current source cloudpoint
-        p_opt[:2] = (p_opt[:2] * np.matrix(T[:2, :2]).T).A
-        p_opt[0] += p[0]
-        p_opt[1] += p[1]
-        p_opt[2] += p[2]
+# ============ display target points ==============
+tgt = []
+print("Displaying target points...")
+pointCount = 4
+for index in range(pointCount):
+    point = [0, 0, 0]
+    targetPoints.GetPoint(index, point)
+    tgt.append(point)
+    print("target point[%s]=%s" % (index, point))
 
-        src = cv2.transform(src, T)
-        # Save the transformation from the actual source cloudpoint
-        Tr = (np.matrix(np.vstack((T, [0, 0, 1]))) * np.matrix(Tr)).A
+print("Running ICP ----------------")
+# ============ run ICP ==============
+icp = vtk.vtkIterativeClosestPointTransform()
+icp.SetSource(source)
+icp.SetTarget(target)
+icp.GetLandmarkTransform().SetModeToRigidBody()
+icp.DebugOn()
+icp.SetMaximumNumberOfIterations(20)
+icp.StartByMatchingCentroidsOn()
+icp.Modified()
+icp.Update()
 
-    p_opt[2] = p_opt[2] % (2 * np.pi)
-    print "squared error at p_opt = " + str(res([0, 0, 0], src[0], dst[0, indices.T][0]))
-    print "p_opt:", p_opt
+icpTransformFilter = vtk.vtkTransformPolyDataFilter()
+if vtk.VTK_MAJOR_VERSION <= 5:
+    icpTransformFilter.SetInput(source)
+else:
+    icpTransformFilter.SetInputData(source)
 
-    return p_opt, np.matrix(Tr)
+icpTransformFilter.SetTransform(icp)
+icpTransformFilter.Update()
+
+transformedSource = icpTransformFilter.GetOutput()
+
+# ============ display transformed points ==============
+pointCount = 4
+tsource=[]
+for index in range(pointCount):
+    point = [0, 0, 0]
+    transformedSource.GetPoint(index, point)
+    tsource.append(point)
+    print("transformed source point[%s]=%s" % (index, point))
+#print tsource[0][0]
 
 
-if __name__ == "__main__":
-    import pylab
-    import numpy.random
+distx = tsource[0][0] - tgt[0][0]
+disty = tsource[0][1] - tgt[0][1]
+distz = tsource[0][2] - tgt[0][2]
 
-    fig = pylab.figure(figsize=(10, 10))
-    ax = fig.add_subplot(111, aspect='equal')
+for i in range(0,3):
+    tsource[i][0] = tsource[i][0] - distx
+    tsource[i][1] = tsource[i][1] - disty
+    tsource[i][2] = tsource[i][2] - distz
 
-    # Create the datasets
-    ang = np.linspace(-np.pi / 2, np.pi / 2, 520)
-    a = np.array([ang, np.sin(ang)])
+# ======================= error =========================
+ED1=np.sqrt((((tgt[0][0]-tsource[0][0])**2) + ((tgt[0][1]-tsource[0][1])**2) +((tgt[0][2]-tsource[0][2])**2)))
+ED2=np.sqrt((((tgt[1][0]-tsource[1][0])**2) + ((tgt[1][1]-tsource[1][1])**2) +((tgt[1][2]-tsource[1][2])**2)))
+ED3=np.sqrt((((tgt[2][0]-tsource[2][0])**2) + ((tgt[2][1]-tsource[2][1])**2) +((tgt[2][2]-tsource[2][2])**2)))
+ED4=np.sqrt((((tgt[3][0]-tsource[3][0])**2) + ((tgt[3][1]-tsource[3][1])**2) +((tgt[3][2]-tsource[3][2])**2)))
 
-    # reference is a rotated by pi/2 and translated [0.2,0.3]
-    th = np.pi / 2
-    rot = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
-    b = np.dot(rot, a) + np.array([[0.2], [0.3]])  # reference
+FRE = float(np.sqrt((ED1**2 + ED2**2 + ED3**2 + ED4**2)/4))
 
-    idx = numpy.random.choice(520, size=60, replace=False)
-    a = a[:, idx]
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
 
-    # plot them
-    ref_h, = ax.plot(b[0], b[1], 'b')
-    input_h = ax.scatter(a[0], a[1], marker='x', color='r')
+x = [tgt[0][0],tgt[1][0],tgt[2][0],tgt[3][0]]
+y = [tgt[0][1],tgt[1][1],tgt[2][1],tgt[3][1]]
+z = [tgt[0][2],tgt[1][2],tgt[2][2],tgt[3][2]]
 
-    # homogeneous coords
-    a_h = np.ones([3, np.size(a, 1)])
-    a_h[:-1, :] = a
+ax.scatter(x[0], y[0], z[0], c='r', marker='o')
+ax.scatter(x[1], y[1], z[1], c='g', marker='o')
+ax.scatter(x[2], y[2], z[2], c='b', marker='o')
+ax.scatter(x[3], y[3], z[3], c='black', marker='o')
 
-    # guess for correct pose
-    # init_pose=[-1.0,0,0.1]
-    init_pose = [0.2 + 5, 0.3 - 7, th + 0.7]
-    # init_pose=[0,0,0]
-    T_g = np.matrix([[np.cos(init_pose[2]), -np.sin(init_pose[2]), init_pose[0]],
-                     [np.sin(init_pose[2]), np.cos(init_pose[2]), init_pose[1]],
-                     [0, 0, 1]])
+ax.set_xlabel('X Label')
+ax.set_ylabel('Y Label')
+ax.set_zlabel('Z Label')
 
-    a_g = T_g * a_h
-    guess_h = ax.scatter(a_g[0], a_g[1], marker='o', color='g')
+x = [tsource[0][0],tsource[1][0],tsource[2][0],tsource[3][0]]
+y = [tsource[0][1],tsource[1][1],tsource[2][1],tsource[3][1]]
+z = [tsource[0][2],tsource[1][2],tsource[2][2],tsource[3][2]]
 
-    # Run the icp
-    p_opt, T_opt = icp(a, b, init_pose, no_iterations=35)
-    a_opt = T_opt * a_h
+ax.scatter(x[0], y[0], z[0], c='r', marker='x')
+ax.scatter(x[1], y[1], z[1], c='g', marker='x')
+ax.scatter(x[2], y[2], z[2], c='b', marker='x')
+ax.scatter(x[3], y[3], z[3], c='black', marker='x')
 
-    result_h = ax.scatter(a_opt[0], a_opt[1], marker='o', color='k')
+plt.show()
 
-    ax.legend((ref_h, input_h, guess_h, result_h), ('reference', 'input', 'guess', 'result'), scatterpoints=1)
-
-    pylab.show()
+print 'FRE: %s' %FRE
